@@ -1,0 +1,3 @@
+@media(forced-colors:active) and (prefers-color-scheme:dark){.img-hc-dark.blur-up{filter:blur(5px) invert(1)}
+.img-hc-dark.blur-up.lazyloaded{filter:blur(0) invert(1)}
+}

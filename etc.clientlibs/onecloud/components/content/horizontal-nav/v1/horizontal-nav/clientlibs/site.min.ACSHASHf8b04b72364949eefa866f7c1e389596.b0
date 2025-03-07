@@ -1,0 +1,13 @@
+class oneCloudTabSlider {
+    #constants = {
+        tabListSelector: ".onecloud-horizontal-nav-tabbed"
+    }
+    constructor() {
+        document.querySelectorAll(this.#constants.tabListSelector).forEach(tabSlideContainer => 
+            new mwf.TabSlider({
+                el: tabSlideContainer
+            })
+        );
+    }
+}
+$(document).on("DOMContentLoaded", () => new oneCloudTabSlider());

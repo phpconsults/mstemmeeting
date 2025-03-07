@@ -1,0 +1,313 @@
+class InlineForm {
+  /** CSS selectors. */
+  static Selector = {
+    COMPONENT: '[data-mount="m365-feature"]',
+    CONFIG: ".teams-redirect-config",
+    INPUT: "input",
+    FORM: 'form',
+  };
+
+  /** Inline Form use cases. */
+  static useCase = {
+    JOIN_A_MEETING: "joinameeting",
+  };
+
+  static instances = [];
+
+  static run() {
+    document
+      .querySelectorAll(InlineForm.Selector.COMPONENT)
+      .forEach((elem) => InlineForm.instances.push(new InlineForm(elem)));
+  }
+
+  /** JS event names. */
+  EventName = {
+    CLICK: "click",
+    DOM_CONTENT_LOADED: "DOMContentLoaded",
+    INPUT: "input",
+    SUBMIT: "submit",
+    ON_VALID: "onValid"
+  };
+
+  className = {
+    IS_INVALID: "is-invalid",
+  };
+
+  prefixExp = /^[1-8]|9+[0-8]/;
+
+  /**
+   * InlineForm constructor.
+   * @param elem The form element.
+   */
+  constructor(elem) {
+    this.formatValue = this.formatValue.bind(this);
+    this.handleSubmit = this.handleSubmit.bind(this);
+    this.checkValidity = this.checkValidity.bind(this);
+    this.config = this.parseJsonElem(
+      elem.querySelector(InlineForm.Selector.CONFIG)
+    );
+    this.redirectTemplate = elem.dataset.redirectTemplate;
+    this.inputs = Array.prototype.slice.call(
+      elem.querySelectorAll(InlineForm.Selector.INPUT)
+    );
+    this.useCase = elem.dataset.useCase;
+    this.formElement = elem.querySelector(InlineForm.Selector.FORM);
+    const formInstances = window.m365.ValidationExtension.getInstances();
+
+    this.formElement.addEventListener(this.EventName.SUBMIT, this.checkValidity)
+    const formInstance = formInstances.find(instance => {
+      return (instance.el === this.formElement);
+    });
+
+    if(formInstance) {
+      formInstance?.defaultValidation.el.addEventListener(this.EventName.ON_VALID, this.handleSubmit);
+    }
+
+    switch (this.useCase) {
+      case InlineForm.useCase.JOIN_A_MEETING:
+        this.inputs[0].addEventListener(this.EventName.INPUT, this.formatValue);
+
+        if (this.inputs.length > 1) {
+          this.inputs[1].addEventListener(
+            this.EventName.INPUT,
+            this.formatValue
+          );
+        }
+
+        break;
+      // No default
+    }
+  }
+
+  findInString(str, exp) {
+    if (str && exp) {
+      const matches = str.match(exp);
+
+      if (matches && matches.length) {
+        return matches[0];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Tries to parse text as JSON.
+   * @param {string} jsonString JSON text.
+   * @returns {Record<string, string> | null}
+   */
+  parseJsonString(jsonString) {
+    if (jsonString) {
+      /** @type {Record<string, string>} */
+      let json;
+
+      try {
+        json = JSON.parse(jsonString);
+      } finally {
+        if (json && Object.keys(json).length) {
+          return json;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Tries to parse an element's text content as JSON.
+   * @param {HTMLElement} jsonElem Element with JSON text content.
+   * @returns {Record<string, string> | null}
+   */
+  parseJsonElem(jsonElem) {
+    if (jsonElem) {
+      const jsonElemText = jsonElem.innerText.trim();
+
+      if (jsonElemText) {
+        return this.parseJsonString(jsonElemText);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Formats a formattable string (at least one {i} token in it) and returns the formatted string.
+   * @param {string} str The formattable string.
+   * @param {unknown[]} items Items to insert into the formattable string.
+   * @returns {string} The formatted string.
+   */
+  stringFormat(str, items) {
+    let formattedString;
+
+    if (typeof str !== "string") {
+      throw new Error("A string must be provided.");
+    } else if (!items || items.length < 1) {
+      throw new Error("Items to insert must be provided.");
+    } else {
+      for (let i = 0, len = items.length; i < len; i++) {
+        let replaceToken = "{" + i + "}";
+        let containsReplaceToken = str.indexOf(replaceToken) !== -1;
+
+        if (containsReplaceToken) {
+          let replaceItem = String(items[i]);
+
+          if (i === 0) {
+            formattedString = str.replace(replaceToken, replaceItem);
+          } else {
+            formattedString = formattedString.replace(
+              replaceToken,
+              replaceItem
+            );
+          }
+        } else {
+          warn(
+            "The formattable string should include as many {i} tokens as items provided."
+          );
+        }
+      }
+
+      return formattedString;
+    }
+  }
+
+  /**
+   * Formats the value of a form's inputs according to use case.
+   */
+  formatValue(e) {
+    const inputIndex = this.inputs.indexOf(e.target);
+
+    let alphanumChars;
+    let value = this.inputs[inputIndex].value;
+
+    switch (this.useCase) {
+      case InlineForm.useCase.JOIN_A_MEETING:
+        switch (inputIndex) {
+          case 0:
+            alphanumChars = this.getAlphanumericCharacters(inputIndex);
+            value = "";
+
+            for (
+              let alphanumCharIndex = 0;
+              alphanumCharIndex < alphanumChars.length;
+              alphanumCharIndex++
+            ) {
+              const alphanumChar = alphanumChars[alphanumCharIndex];
+              const nextIndex = alphanumCharIndex + 1;
+
+              value += alphanumChar;
+
+              if (nextIndex < alphanumChars.length && nextIndex % 3 === 0) {
+                value += " ";
+              }
+            }
+
+            break;
+          case 1:
+            value = value.replace(/[^a-z\d]/i, "");
+
+            break;
+          // No default
+        }
+
+        break;
+      // No default
+    }
+
+    this.inputs[inputIndex].value = value;
+  }
+
+  /**
+   * Gets only the alphanumeric characters from a form input's value.
+   * @param inputIndex The index of the form input to get alphanumeric characters from.
+   * @returns The alphanumeric characters from a form input's value.
+   */
+  getAlphanumericCharacters(inputIndex) {
+    const value = this.inputs[inputIndex].value;
+
+    let alphanumChars = "";
+
+    for (let i = 0; i < value.length; i++) {
+      const valueChar = value[i];
+
+      if (/[a-z\d]/i.test(valueChar)) {
+        alphanumChars += valueChar;
+      }
+    }
+
+    return alphanumChars;
+  }
+
+  /**
+   * Gets redirect formatting values based on use case.
+   * @returns The redirect values to use.
+   */
+  getRedirectValues() {
+    const redirectValues = [];
+
+    let alphanumChars;
+    let prefix;
+
+    switch (this.useCase) {
+      case InlineForm.useCase.JOIN_A_MEETING:
+        alphanumChars = this.getAlphanumericCharacters(0);
+
+        if (this.config) {
+          prefix = this.findInString(alphanumChars, this.prefixExp);
+
+          if (prefix && prefix in this.config) {
+            redirectValues.push(this.config[prefix]);
+          } else {
+            redirectValues.push(this.config.defaultEndpoint);
+          }
+        }
+
+        redirectValues.push(alphanumChars);
+
+        if (this.inputs.length > 1) {
+          redirectValues.push(this.inputs[1].value);
+        }
+
+        break;
+      // No default
+    }
+
+    return redirectValues;
+  }
+
+  /**
+   * Handles form submission.
+   * @param e Submit event.
+   * @returns {false} Preventing default redirect.
+   */
+  handleSubmit(e) {
+    e.preventDefault();
+
+    switch (this.useCase) {
+      case InlineForm.useCase.JOIN_A_MEETING:
+        window.location.href = this.stringFormat(
+          this.redirectTemplate,
+          this.getRedirectValues()
+        );
+
+        break;
+      // No default
+    }
+
+    return false;
+  }
+
+  checkValidity() {
+    const firstInvalidInput = Array.from(this.inputs).find(input =>
+      input.classList.contains(this.className.IS_INVALID)
+    );
+
+    if (firstInvalidInput) {
+      firstInvalidInput.focus();
+    }
+
+  }
+}
+
+document.addEventListener('m365ExtInitialized', () => {
+  InlineForm.run();
+})

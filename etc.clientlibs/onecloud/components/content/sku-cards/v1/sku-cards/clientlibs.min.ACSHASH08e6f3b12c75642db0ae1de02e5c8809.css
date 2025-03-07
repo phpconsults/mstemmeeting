@@ -1,0 +1,2 @@
+.sku-cards{row-gap:inherit}
+.sku-cards .sku-row-2>.cq-Editable-dom,.sku-cards .sku-row-3>.cq-Editable-dom,.sku-cards .sku-row-4>.cq-Editable-dom{display:block;grid-column:auto/span 12;grid-column-start:1}
